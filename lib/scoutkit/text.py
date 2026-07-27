@@ -20,7 +20,17 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["prohibition_spans", "is_negated", "mask_prohibitions", "PROHIBITION_MARKER"]
+__all__ = [
+    "prohibition_spans",
+    "is_negated",
+    "mask_prohibitions",
+    "PROHIBITION_MARKER",
+    "placeholder_roles",
+    "unresolved_placeholders",
+    "significant_tokens",
+    "is_scoped_prohibition",
+    "prohibition_scope",
+]
 
 # Markers that flip the polarity of whatever follows them in the same clause.
 PROHIBITION_MARKER = re.compile(
@@ -101,3 +111,116 @@ def mask_prohibitions(text: str, fill: str = " ") -> str:
             if chars[i] != "\n":
                 chars[i] = fill
     return "".join(chars)
+
+
+# --- placeholder roles -----------------------------------------------------
+#
+# A prompt is full of angle-bracket tokens, and they play two completely
+# different roles. Some describe the *shape of the output* and the agent fills
+# them at run time — "dgm-<slug>-<YYYY-MM-DD>.png". Others are *unresolved
+# inputs* that a human was supposed to substitute before scheduling, and a
+# scheduled run has nobody to ask. Only the second kind is a defect.
+#
+# Angle-bracket tokens in prompts are overwhelmingly format tokens, so that is
+# the default; a token is only reported as an unresolved input on positive
+# evidence.
+
+PLACEHOLDER = re.compile(
+    r"\$\{[^}]{1,60}\}"                 # ${var} — interpolation expects a caller
+    r"|<[A-Za-z][A-Za-z0-9_ -]{0,40}>"  # <token>
+    r"|\[\[[^\]]{1,60}\]\]"             # [[wiki-style]]
+    r"|\b(?:TODO|TBD|XXX|FIXME)\b"      # explicit incompleteness markers
+)
+_ALWAYS_INPUT = re.compile(r"^(?:\$\{|\[\[)|^(?:TODO|TBD|XXX|FIXME)$", re.IGNORECASE)
+# Date/time shapes are format tokens by construction.
+_DATE_SHAPE = re.compile(r"^<[YMDHhms][YMDHhms:/. _-]*>$")
+# A token welded into a larger literal is part of a filename or path pattern.
+_LITERAL_NEIGHBOUR = re.compile(r"[\w./\\-]")
+# Names that denote something only a human can supply.
+_NEEDS_A_HUMAN = frozenset({
+    "recipient", "recipients", "email", "address", "to", "cc", "bcc", "name",
+    "password", "secret", "token", "key", "apikey", "api_key", "url", "endpoint",
+    "tenant", "account", "customer", "client", "user",
+})
+# An explicit instruction to substitute makes a token an input regardless of shape.
+_SUBSTITUTE_CUE = re.compile(
+    r"\b(?:replace|substitute|fill\s+in|provide|supply|set|specify|enter)\b[^.\n]{0,40}$",
+    re.IGNORECASE,
+)
+
+
+def _placeholder_role(token: str, text: str, start: int) -> str:
+    if _ALWAYS_INPUT.match(token):
+        return "input"
+    if _DATE_SHAPE.match(token):
+        return "format"
+
+    before = text[start - 1] if start > 0 else " "
+    after = text[start + len(token)] if start + len(token) < len(text) else " "
+    if _LITERAL_NEIGHBOUR.match(before) or _LITERAL_NEIGHBOUR.match(after):
+        return "format"
+
+    line_start = text.rfind("\n", 0, start) + 1
+    if _SUBSTITUTE_CUE.search(text[line_start:start]):
+        return "input"
+
+    bare = token.strip("<>").strip().lower().replace(" ", "_")
+    if bare in _NEEDS_A_HUMAN:
+        return "input"
+    return "format"
+
+
+def placeholder_roles(text: str) -> list[tuple[str, str]]:
+    """Return ``[(token, role)]`` where role is ``"input"`` or ``"format"``."""
+    seen: dict[str, str] = {}
+    for m in PLACEHOLDER.finditer(text or ""):
+        token = m.group(0)
+        if token not in seen:
+            seen[token] = _placeholder_role(token, text, m.start())
+    return sorted(seen.items())
+
+
+def unresolved_placeholders(text: str) -> list[str]:
+    """Only the tokens a human still has to resolve before a run can succeed."""
+    return [tok for tok, role in placeholder_roles(text) if role == "input"]
+
+
+# --- prohibition scope -----------------------------------------------------
+
+_STOPWORDS = frozenset({
+    "the", "a", "an", "any", "all", "and", "or", "of", "to", "in", "into", "on",
+    "for", "with", "without", "from", "at", "by", "it", "its", "this", "that",
+    "these", "those", "them", "they", "you", "your", "do", "does", "not", "never",
+    "must", "should", "shall", "may", "can", "will", "would", "anything", "else",
+})
+
+
+def significant_tokens(text: str) -> set[str]:
+    """Content words, lowercased — the words that carry the meaning of a clause."""
+    return {w for w in re.findall(r"[a-z][a-z0-9'-]{2,}", (text or "").lower())
+            if w not in _STOPWORDS}
+
+
+def prohibition_scope(constraint: str, verb_pattern: str) -> set[str]:
+    """The subject matter a prohibition protects: content words *after* its verb.
+
+    The verb is excluded deliberately. "Never write X" and "write Y" always share the
+    word "write", so counting it would make every prohibition overlap every action of
+    the same kind and defeat the comparison entirely.
+    """
+    match = re.search(verb_pattern, constraint or "", flags=re.IGNORECASE)
+    if not match:
+        return set()
+    return significant_tokens(constraint[match.end():])
+
+
+def is_scoped_prohibition(constraint: str, verb_pattern: str) -> bool:
+    """True when a prohibition names *what* is forbidden, not just the action.
+
+    "Never send" is unconditional: any send contradicts it. "Never write raw email
+    content into MEMORY" is scoped — it forbids one kind of write to one target, so
+    a plan that writes something else does not necessarily contradict it. The two
+    deserve different confidence, and conflating them is what makes a contradiction
+    list look uniformly alarming.
+    """
+    return len(prohibition_scope(constraint, verb_pattern)) >= 2

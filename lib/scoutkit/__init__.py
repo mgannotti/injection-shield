@@ -20,7 +20,16 @@ from .io import (
     write_text,
 )
 from .render import render_html, render_markdown
-from .text import is_negated, mask_prohibitions, prohibition_spans
+from .text import (
+    is_negated,
+    is_scoped_prohibition,
+    mask_prohibitions,
+    placeholder_roles,
+    prohibition_scope,
+    prohibition_spans,
+    significant_tokens,
+    unresolved_placeholders,
+)
 
 __all__ = [
     "Finding",
@@ -44,6 +53,11 @@ __all__ = [
     "mask_prohibitions",
     "prohibition_spans",
     "describe_schedule",
+    "is_scoped_prohibition",
+    "placeholder_roles",
+    "prohibition_scope",
+    "significant_tokens",
+    "unresolved_placeholders",
 ]
 
 __version__ = "1.1.0"

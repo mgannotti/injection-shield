@@ -71,4 +71,4 @@ nothing to a tenant, and respects Scout's runtime permission model for every act
 ## Provenance
 
 Built as part of the [Scout AgentOps Kit](scout-agentops-kit) — eight deterministic governance and
-reliability skills — and published here as a standalone entry. Version 1.1.2.
+reliability skills — and published here as a standalone entry. Version 1.2.0.
