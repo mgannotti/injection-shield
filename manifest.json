@@ -1,0 +1,34 @@
+{
+  "cloud_writes": false,
+  "description": "Scan untrusted content for prompt-injection payloads and quarantine them.",
+  "distribution": "standalone",
+  "engine": "scripts/injection_shield.py",
+  "entrypoint": "SKILL.md",
+  "exit_codes": {
+    "0": "pass",
+    "1": "review",
+    "2": "block",
+    "3": "evidence error"
+  },
+  "input": "A file or directory of fetched or ingested content.",
+  "name": "injection-shield",
+  "network_required": false,
+  "outputs": [
+    "injection-shield.json",
+    "injection-shield.md",
+    "injection-shield.html",
+    "quarantine/<name>.sanitized.txt"
+  ],
+  "runtime": {
+    "python": ">=3.10",
+    "third_party_packages": []
+  },
+  "schemas": {
+    "output": "references/report-schema.json"
+  },
+  "sends_messages": false,
+  "source_pack": "scout-agentops-kit",
+  "template": "templates/hostile-page.example.md",
+  "tests": "tests/test_injection_shield.py",
+  "version": "1.0.0"
+}
