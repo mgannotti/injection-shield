@@ -30,5 +30,5 @@
   "source_pack": "scout-agentops-kit",
   "template": "templates/hostile-page.example.md",
   "tests": "tests/test_injection_shield.py",
-  "version": "1.1.1"
+  "version": "1.1.2"
 }
