@@ -11,7 +11,9 @@ from scoutkit import Finding, Report, Severity, chain_digest, read_jsonl, write_
 from scoutkit.cli import EXIT_BLOCK, EXIT_PASS, EXIT_REVIEW, resolve_exit_code
 from scoutkit.hashing import GENESIS, canonical_json
 from scoutkit.io import EvidenceError, append_jsonl, read_json, write_text
+from scoutkit.automation import describe_schedule
 from scoutkit.render import render_html, render_markdown
+from scoutkit.text import is_negated, mask_prohibitions, prohibition_spans
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_SLUG = "injection-shield"

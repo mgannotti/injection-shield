@@ -6,6 +6,7 @@ JSON plus human-reviewable Markdown/HTML. Nothing here performs network
 I/O, mutates a tenant, or sends a message.
 """
 
+from .automation import describe_schedule
 from .findings import Finding, Report, Severity
 from .hashing import chain_digest, sha256_bytes, sha256_file, sha256_text
 from .io import (
@@ -19,6 +20,7 @@ from .io import (
     write_text,
 )
 from .render import render_html, render_markdown
+from .text import is_negated, mask_prohibitions, prohibition_spans
 
 __all__ = [
     "Finding",
@@ -38,6 +40,10 @@ __all__ = [
     "write_text",
     "render_html",
     "render_markdown",
+    "is_negated",
+    "mask_prohibitions",
+    "prohibition_spans",
+    "describe_schedule",
 ]
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
